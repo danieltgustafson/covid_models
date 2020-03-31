@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import io
 import requests
-
+from scipy import stats
 ### actual data source from nytimes
 url="https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv"
 s=requests.get(url).content
@@ -31,7 +31,7 @@ def infection_prob(person,infection_rate):
     if (person.immune) | (person.dead) | (person.sick):
         return person
     else:
-        infection_prob = infection_rate*person.network_size
+        infection_prob = stats.geom.cdf(person.network_size,infection_rate)
         if np.random.rand()<infection_prob:
             person.sick=True
             person.severity = max([0,np.random.normal(np.log(person.age),1)])
@@ -83,7 +83,7 @@ def simulate(pop,scale,demo,contact,time,init_infections,mort_discount):
         i_rate = float(infections)/len(people)/scale
         for person in people:
             if (contact[1]>-1) and (t==time[1]):
-                person.network_size=contact[1]
+                person.network_size=person.network_size*contact[1]
             if person.sick:
                 person.clock+=1
             person = infection_prob(person,i_rate)
@@ -93,10 +93,13 @@ def simulate(pop,scale,demo,contact,time,init_infections,mort_discount):
         dead.append(deaths),infect.append(infect),rec.append(recoveries),hospital.append(hosp)
     return people,dead,infect,rec,hospital
 
-
+people,dead,infect,rec,hospital={},{},{},{},{}
+for i in [100,.95,.75,.50,.25,.1]:
+    people[i],dead[i],infect[i],rec[i],hospital[i]=simulate(pop=100000,scale=100,demo=us_pop_buckets,contact=[30,i],
+                                         time=[60,20],init_infections=100,mort_discount=.005)
+    
 ### Example levels of distancing (given NYC at 30 contacts)
-dist,name=[-1,15,10,5,2],['None','50% Dist','66% Dist','85% Dist','95% Dist']
-
+dist,name=[100,.95,.75,.50,.25,.1],['None','95% Soc.Dist','75% Dist','50% Dist','25% Dist']
 for i in range(len(dist)):
     plt.plot(range(1,60),[dead[dist[i]][j]-dead[dist[i]][j-1] for j in range(1,60)],label=name[i])
 plt.plot(range(1,z.shape[0]),[z['deaths'].values[j]-z['deaths'].values[j-1] for j in range(1,z.shape[0])],
